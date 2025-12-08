@@ -38,8 +38,10 @@ struct AddFriendView: View {
                         .padding(.top, 4)
                 }
 
-                Text(message)
-                    .foregroundColor(message.starts(with: "Error") ? .red : .green)
+                if !message.isEmpty {
+                    Text(message)
+                        .foregroundColor(message.starts(with: "Error") ? .red : .green)
+                }
 
                 Spacer()
             }
