@@ -5,6 +5,7 @@ import UIKit
 struct AddFriendView: View {
     @State private var phone = ""
     @State private var message = ""
+    @State private var isSending = false
     @Environment(\.dismiss) var dismiss
     private let service = AvailabilityService()
     private let notifier = UINotificationFeedbackGenerator()
@@ -30,7 +31,12 @@ struct AddFriendView: View {
                     addFriend()
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(normalizedPhone == nil || normalizedPhone == myPhone)
+                .disabled(isSending || normalizedPhone == nil || normalizedPhone == myPhone)
+
+                if isSending {
+                    ProgressView()
+                        .padding(.top, 4)
+                }
 
                 Text(message)
                     .foregroundColor(message.starts(with: "Error") ? .red : .green)
@@ -45,6 +51,7 @@ struct AddFriendView: View {
     }
 
     private func addFriend() {
+        guard !isSending else { return }
         guard let theirPhone = normalizedPhone else {
             message = "Error: Please enter a valid phone number with country code."
             return
@@ -55,7 +62,11 @@ struct AddFriendView: View {
             return
         }
 
+        isSending = true
+        message = ""
+
         service.addFriend(myPhone: myPhone, friendPhone: theirPhone) { result in
+            isSending = false
             switch result {
             case .failure(let error):
                 message = "Error: \(error.localizedDescription)"
