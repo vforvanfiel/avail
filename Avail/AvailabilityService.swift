@@ -70,7 +70,9 @@ struct AvailabilityService {
         onStatusListenerChange: @escaping (ListenerRegistration?) -> Void,
         onChange: @escaping (Result<[Friend], Error>) -> Void
     ) -> ListenerRegistration {
-        db.collection("users").document(phone).collection("friends")
+        var currentStatusListener = statusListener
+
+        return db.collection("users").document(phone).collection("friends")
             .addSnapshotListener { snapshot, error in
                 if let error = error {
                     onChange(.failure(error))
@@ -78,14 +80,15 @@ struct AvailabilityService {
                 }
 
                 guard let docs = snapshot?.documents, !docs.isEmpty else {
-                    statusListener?.remove()
+                    currentStatusListener?.remove()
+                    currentStatusListener = nil
                     onStatusListenerChange(nil)
                     onChange(.success([]))
                     return
                 }
 
                 let phones = docs.map { $0.documentID }
-                statusListener?.remove()
+                currentStatusListener?.remove()
                 let listener = db.collection("users").whereField(FieldPath.documentID(), in: phones)
                     .addSnapshotListener { snap, statusError in
                         if let statusError = statusError {
@@ -97,6 +100,7 @@ struct AvailabilityService {
                         onChange(.success(friends))
                     }
 
+                currentStatusListener = listener
                 onStatusListenerChange(listener)
             }
     }
