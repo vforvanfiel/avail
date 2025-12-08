@@ -170,6 +170,9 @@ struct MainView: View {
                 if status != isAvailable {
                     isSyncingStatus = true
                     isAvailable = status
+                    DispatchQueue.main.async {
+                        self.isSyncingStatus = false
+                    }
                 } else {
                     isSyncingStatus = false
                 }
@@ -189,6 +192,9 @@ struct MainView: View {
                 if status != isAvailable {
                     isSyncingStatus = true
                     isAvailable = status
+                    DispatchQueue.main.async {
+                        self.isSyncingStatus = false
+                    }
                 } else {
                     isSyncingStatus = false
                 }
