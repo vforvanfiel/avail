@@ -14,9 +14,13 @@ struct MainView: View {
     @State private var isAvailable = false
     @State private var friends: [Friend] = []
     @State private var showAddFriend = false
-    private let db = Firestore.firestore()
+    @State private var errorMessage: String?
+    @State private var friendsListener: ListenerRegistration?
+    @State private var statusListener: ListenerRegistration?
+
+    private let service = AvailabilityService()
     private var myPhone: String { Auth.auth().currentUser!.phoneNumber! }
-    
+
     var body: some View {
         NavigationView {
             VStack(spacing: 30) {
@@ -25,11 +29,18 @@ struct MainView: View {
                     .scaleEffect(4)
                     .tint(isAvailable ? .green : .red)
                     .padding()
-                
+
                 Text(isAvailable ? "Available" : "Unavailable")
                     .font(.title)
                     .bold()
-                
+
+                if let errorMessage {
+                    Text(errorMessage)
+                        .foregroundColor(.red)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                }
+
                 List(friends) { friend in
                     HStack {
                         Circle()
@@ -41,7 +52,7 @@ struct MainView: View {
                             .foregroundColor(.secondary)
                     }
                 }
-                
+
                 Spacer()
             }
             .navigationTitle("Avail")
@@ -58,31 +69,48 @@ struct MainView: View {
                 loadMyStatus()
                 listenToFriends()
             }
+            .onDisappear {
+                friendsListener?.remove()
+                statusListener?.remove()
+            }
         }
     }
-    
-    func updateMyStatus(_ available: Bool) {
-        let ref = db.collection("users").document(myPhone)
-        ref.setData(["status": available, "lastChanged": FieldValue.serverTimestamp()], merge: true)
+
+    private func updateMyStatus(_ available: Bool) {
+        service.updateStatus(phone: myPhone, available: available) { result in
+            if case let .failure(error) = result {
+                errorMessage = "Could not update status: \(error.localizedDescription)"
+            }
+        }
     }
-    
-    func loadMyStatus() {
-        db.collection("users").document(myPhone).getDocument { snap, _ in
-            if let data = snap?.data(), let status = data["status"] as? Bool {
+
+    private func loadMyStatus() {
+        service.loadStatus(phone: myPhone) { result in
+            switch result {
+            case .success(let status):
                 isAvailable = status
+            case .failure(let error):
+                errorMessage = "Could not load your status: \(error.localizedDescription)"
             }
         }
     }
-    
-    func listenToFriends() {
-        db.collection("users").document(myPhone).collection("friends")
-            .addSnapshotListener { snapshot, _ in
-                guard let docs = snapshot?.documents else { return }
-                let phones = docs.map { $0.documentID }
-                db.collection("users").whereField(FieldPath.documentID(), in: phones)
-                    .addSnapshotListener { snap, _ in
-                        friends = snap?.documents.compactMap { try? $0.data(as: Friend.self) } ?? []
-                    }
+
+    private func listenToFriends() {
+        friendsListener?.remove()
+        statusListener?.remove()
+
+        friendsListener = service.listenToFriends(
+            phone: myPhone,
+            statusListener: statusListener,
+            onStatusListenerChange: { statusListener = $0 },
+            onChange: { result in
+                switch result {
+                case .success(let friendsList):
+                    friends = friendsList
+                case .failure(let error):
+                    errorMessage = "Could not load friends: \(error.localizedDescription)"
+                }
             }
+        )
     }
 }
