@@ -167,8 +167,12 @@ struct MainView: View {
         service.loadStatus(phone: myPhone) { result in
             switch result {
             case .success(let status):
-                isSyncingStatus = true
-                isAvailable = status
+                if status != isAvailable {
+                    isSyncingStatus = true
+                    isAvailable = status
+                } else {
+                    isSyncingStatus = false
+                }
             case .failure(let error):
                 errorMessage = "Could not load your status: \(error.localizedDescription)"
             }
@@ -182,8 +186,12 @@ struct MainView: View {
         myStatusListener = service.listenToOwnStatus(phone: myPhone) { result in
             switch result {
             case .success(let status):
-                isSyncingStatus = true
-                isAvailable = status
+                if status != isAvailable {
+                    isSyncingStatus = true
+                    isAvailable = status
+                } else {
+                    isSyncingStatus = false
+                }
             case .failure(let error):
                 errorMessage = "Could not refresh your status: \(error.localizedDescription)"
             }
