@@ -11,6 +11,12 @@ A minimal iOS app to toggle your availability (green/red) and share it with frie
 6. Paste the security rules below into Firestore > Rules tab.
 7. Build and run on simulator/device!
 
+## Which Firebase project do I use?
+- Create **your own Firebase project** in the Firebase Console (any region is fine).
+- Download the generated `GoogleService-Info.plist` for your iOS app bundle ID and add it to the Avail target.
+- Enable **Phone Authentication** and **Cloud Firestore**, then apply the security rules below.
+- If you're unsure of your project ID later, open the Firebase Console > Project Settings; the ID and bundle configs are listed there.
+
 ## Firebase Security Rules
 rules_version = '2';
 service cloud.firestore {
