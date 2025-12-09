@@ -1,9 +1,7 @@
 import Foundation
 import FirebaseFirestore
 import FirebaseAuth
-import FirebaseFirestore
 import FirebaseFirestoreSwift
-main
 
 struct AvailabilityService {
     private let db = Firestore.firestore()
@@ -66,10 +64,22 @@ struct AvailabilityService {
         }
     }
 
+    func listenToOwnStatus(phone: String, onChange: @escaping (Result<Bool, Error>) -> Void) -> ListenerRegistration {
+        db.collection("users").document(phone).addSnapshotListener { snapshot, error in
+            if let error = error {
+                onChange(.failure(error))
+                return
+            }
+
+            if let status = snapshot?.data()?["status"] as? Bool {
+                onChange(.success(status))
+            }
+        }
+    }
+
     func listenToFriends(
         phone: String,
-        statusListener: ListenerRegistration?,
-        onStatusListenerChange: @escaping (ListenerRegistration?) -> Void,
+        onStatusListenersChange: @escaping ([ListenerRegistration]) -> Void,
         onChange: @escaping (Result<[Friend], Error>) -> Void
     ) -> ListenerRegistration {
         db.collection("users").document(phone).collection("friends")

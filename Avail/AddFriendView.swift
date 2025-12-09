@@ -9,8 +9,6 @@ struct AddFriendView: View {
     @Environment(\.dismiss) var dismiss
     private let service = AvailabilityService()
     private let notifier = UINotificationFeedbackGenerator()
-=======
-main
 
     private var myPhone: String { Auth.auth().currentUser!.phoneNumber! }
     private var normalizedPhone: String? { PhoneNumberFormatter.normalize(phone) }
@@ -44,12 +42,6 @@ main
                     Text(message)
                         .foregroundColor(message.starts(with: "Error") ? .red : .green)
                 }
-=======
-                .disabled(normalizedPhone == nil || normalizedPhone == myPhone)
-
-                Text(message)
-                    .foregroundColor(message.starts(with: "Error") ? .red : .green)
-main
 
                 Spacer()
             }
@@ -62,8 +54,7 @@ main
 
     private func addFriend() {
         guard !isSending else { return }
-=======
-main
+
         guard let theirPhone = normalizedPhone else {
             message = "Error: Please enter a valid phone number with country code."
             return
@@ -73,15 +64,12 @@ main
             message = "Error: You can't add yourself."
             return
         }
-      
+
         isSending = true
         message = ""
 
         service.addFriend(myPhone: myPhone, friendPhone: theirPhone) { result in
             isSending = false
-=======
-        service.addFriend(myPhone: myPhone, friendPhone: theirPhone) { result in
-main
             switch result {
             case .failure(let error):
                 message = "Error: \(error.localizedDescription)"
