@@ -87,6 +87,44 @@ struct AvailabilityService {
         }
     }
 
+
+                if let status = snap?.data()?["status"] as? Bool {
+                    completion(.success(status))
+                } else {
+                    completion(.success(false))
+                }
+            }
+        }
+    }
+
+    func listenToOwnStatus(phone: String, onChange: @escaping (Result<Bool, Error>) -> Void) -> ListenerRegistration {
+        db.collection("users").document(phone).addSnapshotListener { snapshot, error in
+            DispatchQueue.main.async {
+                if let error = error {
+                    onChange(.failure(error))
+                    return
+                }
+
+                if let status = snapshot?.data()?["status"] as? Bool {
+                    onChange(.success(status))
+                }
+            }
+        }
+    }
+
+    func listenToOwnStatus(phone: String, onChange: @escaping (Result<Bool, Error>) -> Void) -> ListenerRegistration {
+        db.collection("users").document(phone).addSnapshotListener { snapshot, error in
+            if let error = error {
+                onChange(.failure(error))
+                return
+            }
+
+            if let status = snapshot?.data()?["status"] as? Bool {
+                onChange(.success(status))
+            }
+        }
+    }
+
     func listenToFriends(
         phone: String,
         onStatusListenersChange: @escaping ([ListenerRegistration]) -> Void,
