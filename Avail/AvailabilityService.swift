@@ -1,7 +1,9 @@
 import Foundation
+import FirebaseFirestore
 import FirebaseAuth
 import FirebaseFirestore
 import FirebaseFirestoreSwift
+main
 
 struct AvailabilityService {
     private let db = Firestore.firestore()
@@ -77,27 +79,49 @@ struct AvailabilityService {
                     return
                 }
 
+                onStatusListenersChange([])
+
                 guard let docs = snapshot?.documents, !docs.isEmpty else {
-                    statusListener?.remove()
-                    onStatusListenerChange(nil)
                     onChange(.success([]))
                     return
                 }
 
                 let phones = docs.map { $0.documentID }
-                statusListener?.remove()
-                let listener = db.collection("users").whereField(FieldPath.documentID(), in: phones)
-                    .addSnapshotListener { snap, statusError in
-                        if let statusError = statusError {
-                            onChange(.failure(statusError))
-                            return
+                var latestFriends: [String: Friend] = [:]
+                var statusListeners: [ListenerRegistration] = []
+
+                for chunk in phones.chunked(by: 10) {
+                    let listener = db.collection("users")
+                        .whereField(FieldPath.documentID(), in: chunk)
+                        .addSnapshotListener { snap, statusError in
+                            if let statusError = statusError {
+                                onChange(.failure(statusError))
+                                return
+                            }
+
+                            snap?.documents.forEach { doc in
+                                let data = doc.data()
+                                let name = data["name"] as? String ?? "Friend"
+                                let status = data["status"] as? Bool ?? false
+                                let lastChanged = (data["lastChanged"] as? Timestamp)?.dateValue()
+
+                                latestFriends[doc.documentID] = Friend(
+                                    phone: doc.documentID,
+                                    name: name,
+                                    status: status,
+                                    lastChanged: lastChanged
+                                )
+                            }
+
+                            latestFriends = latestFriends.filter { phones.contains($0.key) }
+                            let sorted = latestFriends.values.sorted(by: Friend.sortByFreshness)
+                            onChange(.success(sorted))
                         }
 
-                        let friends = snap?.documents.compactMap { try? $0.data(as: Friend.self) } ?? []
-                        onChange(.success(friends))
-                    }
+                    statusListeners.append(listener)
+                }
 
-                onStatusListenerChange(listener)
+                onStatusListenersChange(statusListeners)
             }
     }
 
@@ -125,5 +149,34 @@ enum PhoneNumberFormatter {
         let digits = trimmed.filter { $0.isWholeNumber }
         guard digits.count >= 10 else { return nil }
         return "+" + digits
+    }
+}
+
+extension Friend {
+    static func sortByFreshness(_ lhs: Friend, _ rhs: Friend) -> Bool {
+        switch (lhs.lastChanged, rhs.lastChanged) {
+        case let (l?, r?):
+            return l > r
+        case (nil, _?):
+            return false
+        case (_?, nil):
+            return true
+        default:
+            return lhs.name < rhs.name
+        }
+    }
+}
+
+private extension Array {
+    func chunked(by size: Int) -> [[Element]] {
+        guard size > 0 else { return [] }
+        var result: [[Element]] = []
+        var index = 0
+        while index < count {
+            let end = Swift.min(index + size, count)
+            result.append(Array(self[index..<end]))
+            index += size
+        }
+        return result
     }
 }
