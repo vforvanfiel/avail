@@ -75,12 +75,14 @@ struct AuthView: View {
         isLoading = true
         PhoneAuthProvider.provider()
             .verifyPhoneNumber(formattedPhone, uiDelegate: nil) { vid, error in
-                isLoading = false
-                if let error = error {
-                    alertMessage = error.localizedDescription
-                    return
+                DispatchQueue.main.async {
+                    isLoading = false
+                    if let error = error {
+                        alertMessage = error.localizedDescription
+                        return
+                    }
+                    verificationID = vid
                 }
-                verificationID = vid
             }
     }
 
@@ -90,24 +92,26 @@ struct AuthView: View {
         let credential = PhoneAuthProvider.provider().credential(withVerificationID: vid, verificationCode: code)
 
         Auth.auth().signIn(with: credential) { _, error in
-            isLoading = false
-            if let error = error {
-                alertMessage = error.localizedDescription
-                return
-            }
-
-            guard let phone = Auth.auth().currentUser?.phoneNumber else {
-                alertMessage = "Unable to read your phone number from authentication."
-                return
-            }
-
-            service.ensureUserProfile(for: phone) { result in
-                switch result {
-                case .failure(let error):
+            DispatchQueue.main.async {
+                isLoading = false
+                if let error = error {
                     alertMessage = error.localizedDescription
-                case .success(let shouldPrompt):
-                    if shouldPrompt {
-                        promptForName(phone: phone)
+                    return
+                }
+
+                guard let phone = Auth.auth().currentUser?.phoneNumber else {
+                    alertMessage = "Unable to read your phone number from authentication."
+                    return
+                }
+
+                service.ensureUserProfile(for: phone) { result in
+                    switch result {
+                    case .failure(let error):
+                        alertMessage = error.localizedDescription
+                    case .success(let shouldPrompt):
+                        if shouldPrompt {
+                            promptForName(phone: phone)
+                        }
                     }
                 }
             }
