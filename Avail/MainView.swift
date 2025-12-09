@@ -152,6 +152,10 @@ struct MainView: View {
                 statusListeners.forEach { $0.remove() }
                 myStatusListener?.remove()
             }
+            .onDisappear {
+                friendsListener?.remove()
+                statusListener?.remove()
+            }
         }
     }
 
