@@ -58,7 +58,13 @@ struct AuthView: View {
                 if isLoading { ProgressView() }
             }
             .padding()
-            .alert("Error", isPresented: .constant(alertMessage != nil)) {
+            .alert(
+                "Error",
+                isPresented: Binding(
+                    get: { alertMessage != nil },
+                    set: { if !$0 { alertMessage = nil } }
+                )
+            ) {
                 Button("OK") { alertMessage = nil }
             } message: {
                 Text(alertMessage ?? "")
