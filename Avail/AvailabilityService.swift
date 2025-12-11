@@ -149,13 +149,115 @@ struct AvailabilityService {
             }
     }
 
-    func addFriend(myPhone: String, friendPhone: String, completion: @escaping (Result<Void, Error>) -> Void) {
-        let myRef = db.collection("users").document(myPhone).collection("friends").document(friendPhone)
-        let theirRef = db.collection("users").document(friendPhone).collection("friends").document(myPhone)
+    func listenToIncomingRequests(
+        phone: String,
+        onChange: @escaping (Result<[FriendRequest], Error>) -> Void
+    ) -> ListenerRegistration {
+        db.collection("users").document(phone).collection("friendRequests")
+            .addSnapshotListener { snapshot, error in
+                DispatchQueue.main.async {
+                    if let error = error {
+                        onChange(.failure(error))
+                        return
+                    }
+
+                    let requests: [FriendRequest] = snapshot?.documents.compactMap { doc in
+                        let data = doc.data()
+                        guard let status = data["status"] as? String, status == "pending" else { return nil }
+                        let name = data["name"] as? String ?? "Unknown"
+                        let createdAt = (data["createdAt"] as? Timestamp)?.dateValue()
+                        return FriendRequest(phone: doc.documentID, name: name, createdAt: createdAt)
+                    } ?? []
+
+                    onChange(.success(requests.sorted(by: FriendRequest.sortByDate)))
+                }
+            }
+    }
+
+    func listenToOutgoingRequests(
+        phone: String,
+        onChange: @escaping (Result<[FriendRequest], Error>) -> Void
+    ) -> ListenerRegistration {
+        db.collection("users").document(phone).collection("sentRequests")
+            .addSnapshotListener { snapshot, error in
+                DispatchQueue.main.async {
+                    if let error = error {
+                        onChange(.failure(error))
+                        return
+                    }
+
+                    let requests: [FriendRequest] = snapshot?.documents.compactMap { doc in
+                        let data = doc.data()
+                        guard let status = data["status"] as? String, status == "pending" else { return nil }
+                        let name = data["name"] as? String ?? "Pending friend"
+                        let createdAt = (data["createdAt"] as? Timestamp)?.dateValue()
+                        return FriendRequest(phone: doc.documentID, name: name, createdAt: createdAt)
+                    } ?? []
+
+                    onChange(.success(requests.sorted(by: FriendRequest.sortByDate)))
+                }
+            }
+    }
+
+    func sendFriendRequest(from myPhone: String, to friendPhone: String, completion: @escaping (Result<Void, Error>) -> Void) {
+        fetchName(for: myPhone) { result in
+            switch result {
+            case .failure(let error):
+                completion(.failure(error))
+            case .success(let myName):
+                let incomingRef = db.collection("users").document(friendPhone)
+                    .collection("friendRequests").document(myPhone)
+                let outgoingRef = db.collection("users").document(myPhone)
+                    .collection("sentRequests").document(friendPhone)
+
+                incomingRef.getDocument { snap, error in
+                    if let error = error {
+                        DispatchQueue.main.async { completion(.failure(error)) }
+                        return
+                    }
+
+                    if snap?.exists == true {
+                        DispatchQueue.main.async { completion(.success(())) }
+                        return
+                    }
+
+                    let batch = db.batch()
+                    batch.setData([
+                        "status": "pending",
+                        "name": myName,
+                        "createdAt": FieldValue.serverTimestamp()
+                    ], forDocument: incomingRef)
+                    batch.setData([
+                        "status": "pending",
+                        "name": "Awaiting approval",
+                        "createdAt": FieldValue.serverTimestamp()
+                    ], forDocument: outgoingRef)
+
+                    batch.commit { error in
+                        DispatchQueue.main.async {
+                            if let error = error {
+                                completion(.failure(error))
+                            } else {
+                                completion(.success(()))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    func accept(friendRequest phone: String, for myPhone: String, completion: @escaping (Result<Void, Error>) -> Void) {
+        let myFriendsRef = db.collection("users").document(myPhone).collection("friends").document(phone)
+        let theirFriendsRef = db.collection("users").document(phone).collection("friends").document(myPhone)
+        let incomingRef = db.collection("users").document(myPhone).collection("friendRequests").document(phone)
+        let outgoingRef = db.collection("users").document(phone).collection("sentRequests").document(myPhone)
 
         let batch = db.batch()
-        batch.setData(["addedAt": FieldValue.serverTimestamp()], forDocument: myRef)
-        batch.setData(["addedAt": FieldValue.serverTimestamp()], forDocument: theirRef)
+        batch.setData(["addedAt": FieldValue.serverTimestamp()], forDocument: myFriendsRef)
+        batch.setData(["addedAt": FieldValue.serverTimestamp()], forDocument: theirFriendsRef)
+        batch.deleteDocument(incomingRef)
+        batch.deleteDocument(outgoingRef)
 
         batch.commit { error in
             DispatchQueue.main.async {
@@ -163,6 +265,133 @@ struct AvailabilityService {
                     completion(.failure(error))
                 } else {
                     completion(.success(()))
+                }
+            }
+        }
+    }
+
+    func decline(friendRequest phone: String, for myPhone: String, completion: @escaping (Result<Void, Error>) -> Void) {
+        let incomingRef = db.collection("users").document(myPhone).collection("friendRequests").document(phone)
+        let outgoingRef = db.collection("users").document(phone).collection("sentRequests").document(myPhone)
+
+        let batch = db.batch()
+        batch.deleteDocument(incomingRef)
+        batch.deleteDocument(outgoingRef)
+
+        batch.commit { error in
+            DispatchQueue.main.async {
+                if let error = error {
+                    completion(.failure(error))
+                } else {
+                    completion(.success(()))
+                }
+            }
+        }
+    }
+
+    func removeFriend(myPhone: String, friendPhone: String, completion: @escaping (Result<Void, Error>) -> Void) {
+        let myRef = db.collection("users").document(myPhone).collection("friends").document(friendPhone)
+        let theirRef = db.collection("users").document(friendPhone).collection("friends").document(myPhone)
+
+        let batch = db.batch()
+        batch.deleteDocument(myRef)
+        batch.deleteDocument(theirRef)
+
+        batch.commit { error in
+            DispatchQueue.main.async {
+                if let error = error {
+                    completion(.failure(error))
+                } else {
+                    completion(.success(()))
+                }
+            }
+        }
+    }
+
+    func blockFriend(myPhone: String, friendPhone: String, completion: @escaping (Result<Void, Error>) -> Void) {
+        let blockRef = db.collection("users").document(myPhone).collection("blocked").document(friendPhone)
+        let incomingRef = db.collection("users").document(myPhone).collection("friendRequests").document(friendPhone)
+        let outgoingRef = db.collection("users").document(friendPhone).collection("sentRequests").document(myPhone)
+        let myFriendRef = db.collection("users").document(myPhone).collection("friends").document(friendPhone)
+        let theirFriendRef = db.collection("users").document(friendPhone).collection("friends").document(myPhone)
+
+        let batch = db.batch()
+        batch.setData([
+            "blockedAt": FieldValue.serverTimestamp(),
+            "by": myPhone
+        ], forDocument: blockRef)
+        batch.deleteDocument(incomingRef)
+        batch.deleteDocument(outgoingRef)
+        batch.deleteDocument(myFriendRef)
+        batch.deleteDocument(theirFriendRef)
+
+        batch.commit { error in
+            DispatchQueue.main.async {
+                if let error = error {
+                    completion(.failure(error))
+                } else {
+                    completion(.success(()))
+                }
+            }
+        }
+    }
+
+    func fetchName(for phone: String, completion: @escaping (Result<String, Error>) -> Void) {
+        db.collection("users").document(phone).getDocument { doc, error in
+            DispatchQueue.main.async {
+                if let error = error {
+                    completion(.failure(error))
+                    return
+                }
+
+                if let name = doc?.data()?["name"] as? String, !name.isEmpty {
+                    completion(.success(name))
+                } else {
+                    completion(.success("Friend"))
+                }
+            }
+        }
+    }
+
+    func deleteAccount(phone: String, completion: @escaping (Result<Void, Error>) -> Void) {
+        let userRef = db.collection("users").document(phone)
+
+        userRef.collection("friends").getDocuments { friendsSnapshot, error in
+            if let error = error {
+                DispatchQueue.main.async { completion(.failure(error)) }
+                return
+            }
+
+            let batch = db.batch()
+            friendsSnapshot?.documents.forEach { doc in
+                let friendPhone = doc.documentID
+                let myRef = userRef.collection("friends").document(friendPhone)
+                let theirRef = db.collection("users").document(friendPhone).collection("friends").document(phone)
+                batch.deleteDocument(myRef)
+                batch.deleteDocument(theirRef)
+            }
+
+            batch.deleteDocument(userRef)
+
+            userRef.collection("friendRequests").getDocuments { incomingSnapshot, _ in
+                incomingSnapshot?.documents.forEach { batch.deleteDocument($0.reference) }
+
+                userRef.collection("sentRequests").getDocuments { outgoingSnapshot, _ in
+                    outgoingSnapshot?.documents.forEach { batch.deleteDocument($0.reference) }
+
+                    userRef.collection("blocked").getDocuments { blockedSnapshot, _ in
+                        blockedSnapshot?.documents.forEach { batch.deleteDocument($0.reference) }
+
+                        batch.commit { error in
+                            DispatchQueue.main.async {
+                                if let error = error {
+                                    completion(.failure(error))
+                                } else {
+                                    completion(.success(()))
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }

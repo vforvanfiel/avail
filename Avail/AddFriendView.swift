@@ -10,7 +10,7 @@ struct AddFriendView: View {
     private let service = AvailabilityService()
     private let notifier = UINotificationFeedbackGenerator()
 
-    private var myPhone: String { Auth.auth().currentUser!.phoneNumber! }
+    private var myPhone: String { Auth.auth().currentUser?.phoneNumber ?? "" }
     private var normalizedPhone: String? { PhoneNumberFormatter.normalize(phone) }
 
     var body: some View {
@@ -32,6 +32,10 @@ struct AddFriendView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(isSending || normalizedPhone == nil || normalizedPhone == myPhone)
+
+                Text("Requests must be accepted before status is shared.")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
 
                 if isSending {
                     ProgressView()
@@ -55,6 +59,11 @@ struct AddFriendView: View {
     private func addFriend() {
         guard !isSending else { return }
 
+        guard !myPhone.isEmpty else {
+            message = "Error: Please sign in again to send requests."
+            return
+        }
+
         guard let theirPhone = normalizedPhone else {
             message = "Error: Please enter a valid phone number with country code."
             return
@@ -68,13 +77,13 @@ struct AddFriendView: View {
         isSending = true
         message = ""
 
-        service.addFriend(myPhone: myPhone, friendPhone: theirPhone) { result in
+        service.sendFriendRequest(from: myPhone, to: theirPhone) { result in
             isSending = false
             switch result {
             case .failure(let error):
                 message = "Error: \(error.localizedDescription)"
             case .success:
-                message = "Request sent! They’ll see you too."
+                message = "Request sent! Waiting for approval."
                 notifier.notificationOccurred(.success)
                 phone = ""
             }
