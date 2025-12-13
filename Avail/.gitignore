@@ -20,7 +20,7 @@ Podfile.lock
 
 # Swift Package Manager
 .swiftpm
-Package.resolved
+# Package.resolved - UNCOMMENTING to track dependency versions for security and reproducibility
 
 # Firebase
 GoogleService-Info.plist

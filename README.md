@@ -5,7 +5,7 @@ A minimal iOS app to toggle your availability (green/red) and share it with frie
 ## Quick Setup
 1. Clone this repo: `git clone https://github.com/vforvanfiel/avail.git`
 2. Open `Avail/Avail.xcodeproj` in Xcode (generate if needed: New Project > save as Avail.xcodeproj in the Avail folder).
-3. Add Firebase: File > Add Package Dependencies > https://github.com/firebase/firebase-ios-sdk (select FirebaseAuth, FirebaseFirestore, FirebaseFirestoreSwift).
+3. Add Firebase: File > Add Package Dependencies > https://github.com/firebase/firebase-ios-sdk (select FirebaseAuth, FirebaseFirestore). **Ensure you're using Firebase iOS SDK v12.7.0 or later for security updates.**
 4. Download `GoogleService-Info.plist` from your Firebase Console project and drag it into Xcode (add to Avail target).
 5. Enable Phone Auth and Firestore in Firebase Console.
 6. Paste the security rules below into Firestore > Rules tab.
