@@ -127,9 +127,9 @@ struct AvailabilityService {
                                         let lastChanged = (data["lastChanged"] as? Timestamp)?.dateValue()
 
                                         latestFriends[doc.documentID] = Friend(
-                                            phone: doc.documentID,
                                             name: name,
                                             status: status,
+                                            phone: doc.documentID,
                                             lastChanged: lastChanged
                                         )
                                     }
