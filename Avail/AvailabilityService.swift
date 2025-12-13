@@ -1,6 +1,7 @@
 import Foundation
-import FirebaseAuth
+import Firebase
 import FirebaseFirestore
+import FirebaseAuth
 
 struct AvailabilityService {
     private let db = Firestore.firestore()
