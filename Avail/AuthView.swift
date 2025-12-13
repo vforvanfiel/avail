@@ -26,6 +26,7 @@ struct AuthView: View {
     @State private var isLoading = false
     @State private var alertMessage: String?
     private let service = AvailabilityService()
+    private let authDelegate = PhoneAuthDelegate() // Keep delegate alive for async callback
 
     private var normalizedPhone: String? { PhoneNumberFormatter.normalize(phoneNumber) }
 
@@ -97,10 +98,8 @@ struct AuthView: View {
         isLoading = true
 
         // Use our custom AuthUIDelegate for reCAPTCHA
-        let authDelegate = PhoneAuthDelegate()
-
         PhoneAuthProvider.provider()
-            .verifyPhoneNumber(formattedPhone, uiDelegate: authDelegate) { vid, error in
+            .verifyPhoneNumber(formattedPhone, uiDelegate: self.authDelegate) { vid, error in
                 DispatchQueue.main.async {
                     isLoading = false
                     if let error = error {
