@@ -2,6 +2,23 @@ import SwiftUI
 import FirebaseAuth
 import UIKit
 
+// Simple AuthUIDelegate implementation for Phone Auth
+class PhoneAuthDelegate: NSObject, AuthUIDelegate {
+    func present(_ viewControllerToPresent: UIViewController, animated flag: Bool, completion: (() -> Void)? = nil) {
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let rootViewController = windowScene.windows.first?.rootViewController {
+            rootViewController.present(viewControllerToPresent, animated: flag, completion: completion)
+        }
+    }
+
+    func dismiss(animated flag: Bool, completion: (() -> Void)? = nil) {
+        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+           let rootViewController = windowScene.windows.first?.rootViewController {
+            rootViewController.dismiss(animated: flag, completion: completion)
+        }
+    }
+}
+
 struct AuthView: View {
     @State private var phoneNumber = ""
     @State private var verificationID: String?
@@ -79,16 +96,11 @@ struct AuthView: View {
 
         isLoading = true
 
-        // Get the current view controller to use as UIDelegate for reCAPTCHA
-        guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-              let rootViewController = scene.windows.first?.rootViewController else {
-            alertMessage = "Unable to access window. Please restart the app."
-            isLoading = false
-            return
-        }
+        // Use our custom AuthUIDelegate for reCAPTCHA
+        let authDelegate = PhoneAuthDelegate()
 
         PhoneAuthProvider.provider()
-            .verifyPhoneNumber(formattedPhone, uiDelegate: rootViewController as? AuthUIDelegate) { vid, error in
+            .verifyPhoneNumber(formattedPhone, uiDelegate: authDelegate) { vid, error in
                 DispatchQueue.main.async {
                     isLoading = false
                     if let error = error {
