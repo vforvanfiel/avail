@@ -1,7 +1,6 @@
 import Foundation
 import FirebaseFirestore
 import FirebaseAuth
-import FirebaseFirestoreSwift
 
 struct AvailabilityService {
     private let db = Firestore.firestore()
