@@ -78,8 +78,17 @@ struct AuthView: View {
         }
 
         isLoading = true
+
+        // Get the current view controller to use as UIDelegate for reCAPTCHA
+        guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let rootViewController = scene.windows.first?.rootViewController else {
+            alertMessage = "Unable to access window. Please restart the app."
+            isLoading = false
+            return
+        }
+
         PhoneAuthProvider.provider()
-            .verifyPhoneNumber(formattedPhone, uiDelegate: nil) { vid, error in
+            .verifyPhoneNumber(formattedPhone, uiDelegate: rootViewController as? AuthUIDelegate) { vid, error in
                 DispatchQueue.main.async {
                     isLoading = false
                     if let error = error {
