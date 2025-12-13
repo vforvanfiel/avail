@@ -45,6 +45,11 @@ allow read: if request.auth != null;
 - `Avail/MainView.swift`: Main toggle + friends list.
 - `Avail/AddFriendView.swift`: Add friends sheet.
 
+## Cloning with Xcode (keeps the project in sync)
+- You **can** clone directly from Xcode: *Source Control > Clone…* → paste your GitHub URL → choose a folder (e.g., `~/Developer`), then open `Avail/Avail.xcodeproj`.
+- Xcode uses git under the hood. When you or teammates push changes, just run **Source Control > Pull** (or `git pull` in Terminal) and the files in the Xcode project update automatically—no need to re-add/drag them once they’re part of the project.
+- When adding new files in Xcode, check **Add to targets** before committing. Commit both the new file and the updated `.xcodeproj`; after that, pulls will surface the new files automatically.
+
 ## Next Steps
 - Test: Install app on two phones, add each other, toggle away!
 - Polish: Add widgets, push notifications, or custom names.
