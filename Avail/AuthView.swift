@@ -71,7 +71,7 @@ struct AuthView: View {
                     .font(.largeTitle.bold())
 
                 TextField("+1234567890", text: $phoneNumber)
-                    .keyboardType(.phonePad)
+                    .keyboardType(.numbersAndPunctuation)
                     .textContentType(.telephoneNumber)
                     .padding()
                     .background(Color(.secondarySystemBackground))
