@@ -1,66 +1,20 @@
 import SwiftUI
 import FirebaseAuth
-import UIKit
-
-// Simple AuthUIDelegate implementation for Phone Auth
-class PhoneAuthDelegate: NSObject, AuthUIDelegate {
-    func present(_ viewControllerToPresent: UIViewController, animated flag: Bool, completion: (() -> Void)? = nil) {
-        print("🔵 PhoneAuthDelegate: present called")
-
-        DispatchQueue.main.async {
-            guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene else {
-                print("🔴 No window scene")
-                completion?()
-                return
-            }
-
-            guard let window = windowScene.windows.first(where: { $0.isKeyWindow }) ?? windowScene.windows.first else {
-                print("🔴 No window")
-                completion?()
-                return
-            }
-
-            var topController = window.rootViewController
-            while let presented = topController?.presentedViewController {
-                topController = presented
-            }
-
-            guard let controller = topController else {
-                print("🔴 No view controller")
-                completion?()
-                return
-            }
-
-            print("✅ Presenting reCAPTCHA on \(type(of: controller))")
-            controller.present(viewControllerToPresent, animated: flag) {
-                print("✅ reCAPTCHA presented")
-                completion?()
-            }
-        }
-    }
-
-    func dismiss(animated flag: Bool, completion: (() -> Void)? = nil) {
-        DispatchQueue.main.async {
-            guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-                  let window = windowScene.windows.first(where: { $0.isKeyWindow }) ?? windowScene.windows.first else {
-                completion?()
-                return
-            }
-            window.rootViewController?.dismiss(animated: flag, completion: completion)
-        }
-    }
-}
 
 struct AuthView: View {
     @State private var phoneNumber = ""
     @State private var verificationID: String?
     @State private var code = ""
     @State private var isLoading = false
-    @State private var alertMessage: String?
+    @State private var errorMessage: String?
     private let service = AvailabilityService()
-    private let authDelegate = PhoneAuthDelegate() // Keep delegate alive for async callback
 
-    private var normalizedPhone: String? { PhoneNumberFormatter.normalize(phoneNumber) }
+    private var normalizedPhone: String? {
+        let trimmed = phoneNumber.trimmingCharacters(in: .whitespacesAndNewlines)
+        let digits = trimmed.filter { $0.isWholeNumber || $0 == "+" }
+        guard digits.count >= 11 else { return nil }
+        return digits.hasPrefix("+") ? digits : "+" + digits
+    }
 
     var body: some View {
         if Auth.auth().currentUser != nil {
@@ -99,102 +53,89 @@ struct AuthView: View {
                     .disabled(code.isEmpty || isLoading)
                 }
 
-                if let alertMessage {
-                    Text(alertMessage)
+                if let errorMessage {
+                    Text(errorMessage)
                         .foregroundColor(.red)
+                        .padding()
                 }
 
-                if isLoading { ProgressView() }
+                if isLoading {
+                    ProgressView()
+                        .padding()
+                }
             }
             .padding()
-            .alert(
-                "Error",
-                isPresented: Binding(
-                    get: { alertMessage != nil },
-                    set: { if !$0 { alertMessage = nil } }
-                )
-            ) {
-                Button("OK") { alertMessage = nil }
-            } message: {
-                Text(alertMessage ?? "")
-            }
         }
     }
 
     private func sendCode() {
-        guard let formattedPhone = normalizedPhone else {
-            alertMessage = "Please enter a valid phone number with country code."
+        guard let phone = normalizedPhone else {
+            errorMessage = "Enter a valid phone number (e.g., +1234567890)"
             return
         }
 
         isLoading = true
+        errorMessage = nil
 
-        // Try without uiDelegate - let Firebase handle reCAPTCHA automatically
-        PhoneAuthProvider.provider()
-            .verifyPhoneNumber(formattedPhone, uiDelegate: nil) { vid, error in
-                DispatchQueue.main.async {
-                    isLoading = false
-                    if let error = error {
-                        alertMessage = error.localizedDescription
-                        return
-                    }
-                    verificationID = vid
-                }
-            }
-    }
+        Auth.auth().settings?.isAppVerificationDisabledForTesting = false
 
-    private func verifyCode() {
-        guard let vid = verificationID else { return }
-        isLoading = true
-        let credential = PhoneAuthProvider.provider().credential(withVerificationID: vid, verificationCode: code)
+        PhoneAuthProvider.provider().verifyPhoneNumber(phone, uiDelegate: nil) { verificationID, error in
+            Task { @MainActor in
+                self.isLoading = false
 
-        Auth.auth().signIn(with: credential) { _, error in
-            DispatchQueue.main.async {
-                isLoading = false
                 if let error = error {
-                    alertMessage = error.localizedDescription
+                    self.errorMessage = "Error: \(error.localizedDescription)"
                     return
                 }
 
-                guard let phone = Auth.auth().currentUser?.phoneNumber else {
-                    alertMessage = "Unable to read your phone number from authentication."
-                    return
-                }
-
-                service.ensureUserProfile(for: phone) { result in
-                    switch result {
-                    case .failure(let error):
-                        alertMessage = error.localizedDescription
-                    case .success(let shouldPrompt):
-                        if shouldPrompt {
-                            promptForName(phone: phone)
-                        }
-                    }
-                }
+                self.verificationID = verificationID
             }
         }
     }
 
-    private func promptForName(phone: String) {
-        DispatchQueue.main.async {
-            let alertController = UIAlertController(
-                title: "Welcome!",
-                message: "What should friends call you?",
-                preferredStyle: .alert
-            )
+    private func verifyCode() {
+        guard let vid = verificationID else {
+            errorMessage = "No verification ID"
+            return
+        }
 
-            alertController.addTextField { $0.placeholder = "Your name" }
-            alertController.addAction(UIAlertAction(title: "Save", style: .default) { _ in
-                let name = alertController.textFields?.first?.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                let finalName = name.isEmpty ? "Friend" : name
-                service.saveUserProfile(phone: phone, name: finalName) { result in
-                    if case let .failure(error) = result {
-                        alertMessage = error.localizedDescription
+        isLoading = true
+        errorMessage = nil
+
+        let credential = PhoneAuthProvider.provider().credential(
+            withVerificationID: vid,
+            verificationCode: code
+        )
+
+        Auth.auth().signIn(with: credential) { result, error in
+            Task { @MainActor in
+                self.isLoading = false
+
+                if let error = error {
+                    self.errorMessage = "Verification failed: \(error.localizedDescription)"
+                    return
+                }
+
+                guard let phone = result?.user.phoneNumber else {
+                    self.errorMessage = "Could not get phone number"
+                    return
+                }
+
+                // Check if user profile exists
+                self.service.ensureUserProfile(for: phone) { profileResult in
+                    Task { @MainActor in
+                        switch profileResult {
+                        case .failure(let error):
+                            self.errorMessage = error.localizedDescription
+                        case .success(let isNewUser):
+                            if isNewUser {
+                                // New user - save default profile
+                                self.service.saveUserProfile(phone: phone, name: "Friend") { _ in }
+                            }
+                        }
                     }
                 }
-            })
-
-            UIApplication.shared.windows.first?.rootViewController?.present(alertController, animated: true)
+            }
         }
     }
 }
