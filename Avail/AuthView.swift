@@ -5,16 +5,48 @@ import UIKit
 // Simple AuthUIDelegate implementation for Phone Auth
 class PhoneAuthDelegate: NSObject, AuthUIDelegate {
     func present(_ viewControllerToPresent: UIViewController, animated flag: Bool, completion: (() -> Void)? = nil) {
-        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-           let rootViewController = windowScene.windows.first?.rootViewController {
-            rootViewController.present(viewControllerToPresent, animated: flag, completion: completion)
+        print("🔵 PhoneAuthDelegate: present called")
+
+        DispatchQueue.main.async {
+            guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene else {
+                print("🔴 No window scene")
+                completion?()
+                return
+            }
+
+            guard let window = windowScene.windows.first(where: { $0.isKeyWindow }) ?? windowScene.windows.first else {
+                print("🔴 No window")
+                completion?()
+                return
+            }
+
+            var topController = window.rootViewController
+            while let presented = topController?.presentedViewController {
+                topController = presented
+            }
+
+            guard let controller = topController else {
+                print("🔴 No view controller")
+                completion?()
+                return
+            }
+
+            print("✅ Presenting reCAPTCHA on \(type(of: controller))")
+            controller.present(viewControllerToPresent, animated: flag) {
+                print("✅ reCAPTCHA presented")
+                completion?()
+            }
         }
     }
 
     func dismiss(animated flag: Bool, completion: (() -> Void)? = nil) {
-        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-           let rootViewController = windowScene.windows.first?.rootViewController {
-            rootViewController.dismiss(animated: flag, completion: completion)
+        DispatchQueue.main.async {
+            guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                  let window = windowScene.windows.first(where: { $0.isKeyWindow }) ?? windowScene.windows.first else {
+                completion?()
+                return
+            }
+            window.rootViewController?.dismiss(animated: flag, completion: completion)
         }
     }
 }
