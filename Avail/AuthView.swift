@@ -129,9 +129,9 @@ struct AuthView: View {
 
         isLoading = true
 
-        // Use our custom AuthUIDelegate for reCAPTCHA
+        // Try without uiDelegate - let Firebase handle reCAPTCHA automatically
         PhoneAuthProvider.provider()
-            .verifyPhoneNumber(formattedPhone, uiDelegate: self.authDelegate) { vid, error in
+            .verifyPhoneNumber(formattedPhone, uiDelegate: nil) { vid, error in
                 DispatchQueue.main.async {
                     isLoading = false
                     if let error = error {
